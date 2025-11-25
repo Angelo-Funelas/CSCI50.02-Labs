@@ -8,6 +8,84 @@
 .include "nominal.jsim"
 .include "stdcell.jsim"
 
+*******************************************************************************
+* Include alu32
+.subckt fa a b c_in sum c_out
+  Xsum1 a b sum1 xor2
+  Xcarry1 a b carry1 nand2
+  Xsum2 sum1 c_in sum xor2
+  Xcarry2 sum1 c_in carry2 nand2
+  Xcarry carry1 carry2 c_out nand2
+.ends
+
+.subckt add32 a[31:0] b[31:0] cin0 sum[31:0] cout[31:30]
+  Xfa a[0:31] b[0:31] cin0 cout[0:30] sum[0:31] cout[0:31] fa
+.ends
+
+.subckt iszero32 a[31:0] z
+  Xnor1 a[3:0] a[7:4] a[11:8] a[15:12] nor_out[3:0] nor4
+  Xnor2 a[19:16] a[23:20] a[27:24] a[31:28] nor_out[7:4] nor4
+  Xnand1 nor_out[1:0] nor_out[3:2] nor_out[5:4] nor_out[7:6] nand_out[1:0] nand4
+  Xout nand_out0 nand_out1 z nor2
+.ends
+
+.subckt as32 a[31:0] b[31:0] op0 fas[31:0] n v z
+  .connect fas31 n
+
+  Xinv b[31:0] inv_b[31:0] inverter
+  Xswitch op0#32 b[31:0] inv_b[31:0] x[31:0] mux2
+  Xadd a[31:0] x[31:0] op0 fas[31:0] cout[31:30] add32
+  Xeq cout31 cout30 v xor2
+  Xcirc_z fas[31:0] z iszero32
+.ends
+
+.subckt cmp32 n v z op[2:1] fcmp[31:0]
+  .connect 0 fcmp[31:1]
+
+  Xinv2 n inv_n inverter
+  Xswitch2 v n inv_n neg mux2
+  Xor neg z lte or2
+  Xcomp op2 op1 0 neg z lte fcmp0 mux4
+.ends
+
+.subckt bool32 a[31:0] b[31:0] op[3:0] fbool[31:0]
+  Xbool a[0:31] b[0:31] op0#32 op1#32 op2#32 op3#32 fbool[0:31] mux4
+.ends
+
+.subckt shift32 a[31:0] b[4:0] op[1:0] fshift[31:0]
+  Xarithm op1 0 a31 grnd mux2
+  Xdir1 op0#32 a[0:31] a[31:0] num[31:0] mux2
+
+  X16 b4#32 num[31:0] grnd#16 num[31:16] sixteen[31:0] mux2
+  X8 b3#32 sixteen[31:0] grnd#8 sixteen[31:8] eight[31:0] mux2
+  X4 b2#32 eight[31:0] grnd#4 eight[31:4] four[31:0] mux2
+  X2 b1#32 four[31:0] grnd#2 four[31:2] two[31:0] mux2
+  X1 b0#32 two[31:0] grnd two[31:1] one[31:0] mux2
+
+  Xdir2 op0#32 one[0:31] one[31:0] fshift[31:0] mux2
+.ends
+
+.subckt alu32 a[31:0] b[31:0] alufn[5:0] f[31:0]
+  Xaddsub a[31:0] b[31:0] alufn0 fas[31:0] n v z as32
+  Xboolean a[31:0] b[31:0] alufn[3:0] fbool[31:0] bool32
+  Xbshift a[31:0] b[4:0] alufn[1:0] fshift[31:0] shift32
+  Xcompare n v z alufn[2:1] fcmp[31:0] cmp32
+
+  Xalu alufn5#32 alufn4#32 fas[31:0] fshift[31:0] fbool[31:0] fcmp[31:0] f[31:0] mux4
+.ends
+
+* Include counter32
+.subckt counter32 reset a[31:0] f[31:0] clk
+  .connect clk regclk[31:0]
+  .connect reset reset[31:0]
+  .connect 0 gnd[31:0]
+
+  Xinc a[31:0] f[31:0] 0 d[31:0] cout[31:30] add32
+  Xreset reset[31:0] d[31:0] gnd[31:0] temp[31:0] mux2
+  Xid temp[31:0] regclk[31:0] f[31:0] dreg
+.ends
+*******************************************************************************
+
 Xmemory  vdd  0    0   pc[8:2]    inst[31:0]
 +        vdd  0    0   mema[8:2]  memrd[31:0]
 +        0    clk  wr  mema[8:2]  memwd[31:0]
