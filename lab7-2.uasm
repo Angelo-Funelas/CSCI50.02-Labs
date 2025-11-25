@@ -1,0 +1,89 @@
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| LAB #7 - 2
+| - Francisco, Janelle Chloe
+| - Funelas, Martin Angelo
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+.include beta.uasm
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| Registers
+| R0 (array_i)   : Base address of the array
+| R1 (array_len) : Length of the data part of the array N
+| R2 (outer_counter)   : Outer loop counter
+| R3 (inner_counter)   : Inner loop counter
+| R4 (array_end_addr) : Address of last element
+| R5 (array_i+1): Address of next element A[array_i+1]
+| R6 (temp1)      : Temporary register for swapping A[j] element
+| R7 (temp2)     : Temporary register for swapping A[j+1] element
+| R8 (is_sorted) : 1=sorted, 0=not sorted
+| R9 (const_4)  : Constant value 4
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+| Bubble Sort Algorithm, Time Complexity O(n^2)
+
+| Prepare for sorting
+.= 0x0
+    CMOVE(4, R9)             | Set word size
+    LD(R31, ARRAY, R1)       | Load array length
+    
+    | Make sure array is not empty or has only 1 element
+    CMPLEC(R1, 1, R8)        | Check if length is less than or equal to 1
+    BNE(R8, DONE)            | If it is END.
+
+    CMOVE(4, R4)
+    MUL(R4, R1, R4)          | Multiply array length by 4 then add array address
+    ADDC(R4, ARRAY, R4)      | Store address of last element in array
+
+    MOVE(R1, R2)             | Initialize outer_counter to array length
+
+| Outer loop handles iterations of going through the array. Can iterate max N times
+OUTER_LOOP:
+    CMOVE(1, R8)             | Set the 'is_sorted' flag to 1
+    SUBC(R2, 1, R2)          | Decrement outer counter
+    
+    CMPEQ(R2, R31, R6)
+    BNE(R6, DONE)            | If R2 (outer_counter) is zero, reached max outer loop iterations, END
+    
+    ADDC(R9, ARRAY, R0)      | Initialize array_i to the address of the first element
+
+
+| This loop goes through each pair of elements in the array (N-1 times), swapping them when they are not in order.
+INNER_LOOP:
+    CMPLT(R0, R4, R6)        | arr_i < last_element_address
+    BEQ(R6, INNER_LOOP_DONE) | If R6 is zero (false), reached end of array, break inner loop.
+
+    ADD(R0, R9, R5)          | Move inner loop pointer to next element
+    
+    LD(R0, 0, R6)            | Load A[arr_i] into R6 (temp1)
+    LD(R5, 0, R7)            | Load A[arr_i+1] into R7 (temp2)
+
+    CMPLT(R7, R6, R3)        | Compare A[arr_i+1] < A[arr_i] 
+    BEQ(R3, SWAP_DONE)       | If R3 is zero, no swap needed
+
+    | PERFORM SWAP
+    CMOVE(0, R8)             | Set the 'is_sorted' flag to 0 since a swap occurred
+    ST(R7, 0, R0)            | Swap
+    ST(R6, 0, R5)            | Swap
+
+SWAP_DONE:
+    ADD(R0, R9, R0)          | Increment inner loop counter
+    BR(INNER_LOOP)           | Jump back to the start of the inner loop
+
+INNER_LOOP_DONE:
+    BNE(R8, DONE)            | If is_sorted flag is 1, break outer loop
+    BR(OUTER_LOOP)           | Else, go back to the start of the outer loop
+
+DONE:
+    HALT()
+    
+. = 0x70
+ARRAY:
+    LONG(7)
+    LONG(5)
+    LONG(7)
+    LONG(8)
+    LONG(6)
+    LONG(4)
+    LONG(9)
+    LONG(3)

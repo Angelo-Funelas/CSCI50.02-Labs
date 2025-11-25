@@ -1,0 +1,55 @@
+* Francisco, Janelle Chloe
+* Funelas, Martin Angelo
+
+.include "8clocks.jsim"
+.include "nominal.jsim"
+.include "stdcell.jsim"
+
+******************************************
+* To get the output of each AND expression, we can
+* invert the output of their NAND using another NAND.
+* To get the output of the OR expressions using NAND,
+* we have to invert each output again then NAND them.
+* To simplify, we can remove the 2 inversions.
+******************************************
+
+.subckt fx a b c d e f g out
+    Xexp1 a b c exp1 nand3
+    Xexp2 d e exp2 nand2
+    Xexp3 f g exp3 nand2
+    Xfinal exp1 exp2 exp3 out nand3 
+.ends
+
+*******************************************
+* In the full-adder circuit, to calculate the carry,
+* we need to OR the carry of the 2 half-adders.
+* to do this with NAND, it would be !C1 NAND !C2.
+* To simplify, we can keep the carry in the
+* half-adder as inverted.
+*******************************************
+
+.subckt inv_carry_ha a b sum carry
+    Xsum a b sum xor2
+    Xcarry a b carry nand2
+.ends
+
+.subckt fa a b carry_in sum carry_out
+    Xsum1 a b sum1 carry1 inv_carry_ha
+    Xsum2 sum1 carry_in sum carry2 inv_carry_ha
+    xcarry carry1 carry2 carry_out nand2
+.ends
+
+Xc1 clk1 clk2 clk3 clk4 clk5 clk6 clk7 out_fx fx
+Xc2 clk5 clk6 clk7 sum_fa carry_fa fa
+
+.tran 640ns
+.plot clk1
+.plot clk2
+.plot clk3
+.plot clk4
+.plot clk5
+.plot clk6
+.plot clk7
+.plot out_fx
+.plot sum_fa
+.plot carry_fa

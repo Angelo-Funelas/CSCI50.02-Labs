@@ -1,0 +1,57 @@
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|
+| LAB #7-1
+| - Francisco, Janelle Chloe
+| - Funelas, Martin Angelo
+|
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| REGISTERS
+| r0  input; also decrements to determine whether or not to keep looping
+| r1  the first of the two most recent numbers
+| r2  the second of the two most recent numbers
+| r3  the sum of the two most recent numbers
+| r4  the address to store the next value of the array in
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+.include beta.uasm
+. = 0x00
+
+
+        LD(r31, INPUT, r0)   | load N into r0
+        ADDC(r31, 0, r1)     | load 0 into r1
+        ADDC(r31, 1, r2)     | load 1 into r2
+        BEQ(r0, done, r31)   | if r0==0, branch to done
+        SUBC(r0, 1, r0)      | decrement r0
+        ADDC(r31, OUTPUT, r4)  | store output address into r4
+        ST(r1, 0, r4)        | store the first value into OUTPUT array
+        ADDC(r4, 4, r4)      | move the PC
+        BEQ(r0, done, r31)   | if r0==0, branch to done
+        SUBC(r0, 1, r0)      | decrement r0
+        ST(r2, 0, r4)        | store the second value into OUTPUT array
+        ADDC(r4, 4, r4)      | move the PC
+        BEQ(r0, done, r31)   | if r0==0, branch to done
+
+
+loop:   SUBC(r0, 1, r0)      | decrement r0
+        ADD(r1, r2, r3)      | add r1 and r2 and store the sum in r3
+        ST(r3, 0, r4)        | store the value of r3 into OUTPUT array
+        ADDC(r4, 4, r4)      | move the PC
+        ADD(r2, r31, r1)     | move contents of r2 into r1
+        ADD(r3, r31, r2)     | move contents of r3 into r2
+        BNE(r0, loop, r31)   | branch to loop if r0 > 0
+       
+done:   HALT()               | stop execution
+
+
+. = 0x58
+
+
+INPUT:  LONG(1035)
+OUTPUT:
+
+
+

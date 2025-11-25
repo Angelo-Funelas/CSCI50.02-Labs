@@ -1,0 +1,133 @@
+*******************************************************************************
+* LAB #6
+* - Francisco, Janelle Chloe
+* - Funelas, Martin Angelo
+*******************************************************************************
+
+.include "8clocks.jsim"
+.include "nominal.jsim"
+.include "stdcell.jsim"
+
+.subckt fa a b c_in sum c_out
+  Xsum1 a b sum1 xor2
+  Xcarry1 a b carry1 nand2
+  Xsum2 sum1 c_in sum xor2
+  Xcarry2 sum1 c_in carry2 nand2
+  Xcarry carry1 carry2 c_out nand2
+.ends
+
+.subckt add32 a[31:0] b[31:0] cin0 sum[31:0] cout[31:30]
+  Xfa a[0:31] b[0:31] cin0 cout[0:30] sum[0:31] cout[0:31] fa
+.ends
+
+.subckt iszero32 a[31:0] z
+  Xnor1 a[3:0] a[7:4] a[11:8] a[15:12] nor_out[3:0] nor4
+  Xnor2 a[19:16] a[23:20] a[27:24] a[31:28] nor_out[7:4] nor4
+  Xnand1 nor_out[1:0] nor_out[3:2] nor_out[5:4] nor_out[7:6] nand_out[1:0] nand4
+  Xout nand_out0 nand_out1 z nor2
+.ends
+
+.subckt as32 a[31:0] b[31:0] op0 fas[31:0] n v z
+  .connect fas31 n
+
+  Xinv b[31:0] inv_b[31:0] inverter
+  Xswitch op0#32 b[31:0] inv_b[31:0] x[31:0] mux2
+  Xadd a[31:0] x[31:0] op0 fas[31:0] cout[31:30] add32
+  Xeq cout31 cout30 v xor2
+  Xcirc_z fas[31:0] z iszero32
+.ends
+
+.subckt cmp32 n v z op[2:1] fcmp[31:0]
+  .connect 0 fcmp[31:1]
+
+  Xinv2 n inv_n inverter
+  Xswitch2 v n inv_n neg mux2
+  Xor neg z lte or2
+  Xcomp op2 op1 0 neg z lte fcmp0 mux4
+.ends
+
+* This circuit first splits each op signal into 32, one for each bit in the result.
+* op is used as a truth table to determine the operation between each bit in a and b.
+* a 4 way mux circuit is used to do the comparison for each bit using op as the
+* truth table to get the result fbool.
+.subckt bool32 a[31:0] b[31:0] op[3:0] fbool[31:0]
+  Xbool a[0:31] b[0:31] op0#32 op1#32 op2#32 op3#32 fbool[0:31] mux4
+.ends
+
+* This circuit shifts the bits of a by the value of b. First we handle op1
+* which indicates if the shift should be arithmetic (1) or logical (0). We
+* initialize grnd depending on op1. We use a 2-way multiplexer to reverse the
+* bits of a if we are shifting left (op0=0). We then go through 5 stages to
+* shift the bits by 16, 8, 4, 2, then 1 depending on if its corresponding
+* value of b is 0 or 1 using a 2-way multiplexer. The result of one shift is
+* chained to the next shift stage. At the end, the values are once again
+* reversed if op0=0 so the bits appear in correct order using a 2-way mux.
+.subckt shift32 a[31:0] b[4:0] op[1:0] fshift[31:0]
+  Xarithm op1 0 a31 grnd mux2
+  Xdir1 op0#32 a[0:31] a[31:0] num[31:0] mux2
+
+  X16 b4#32 num[31:0] grnd#16 num[31:16] sixteen[31:0] mux2
+  X8 b3#32 sixteen[31:0] grnd#8 sixteen[31:8] eight[31:0] mux2
+  X4 b2#32 eight[31:0] grnd#4 eight[31:4] four[31:0] mux2
+  X2 b1#32 four[31:0] grnd#2 four[31:2] two[31:0] mux2
+  X1 b0#32 two[31:0] grnd two[31:1] one[31:0] mux2
+
+  Xdir2 op0#32 one[0:31] one[31:0] fshift[31:0] mux2
+.ends
+
+* The circuit takes in 2 inputs a and b then alufn as a way to determine which operation
+* to do and uses f as the result. The 4 way mux circuit is used to determine which operation
+* to do based on the 2 leftmost bits of alufn, which corresponds to the a circuit that does
+* the operations: as32 (addition/subtractor), bool32 (bitwise boolean), shift32 (bit shift)
+* or cmp (comparator). Each circuit does not use all the bits from a and b and alufn.
+* as32 uses all of a and b, but only alufn0 to determine if it is addition or subtraction.
+* bool32 uses all of a and b, but only the 4 leftmost bits of alufn to determine the truth table.
+* shift32 only needs all of a, 5 bits of b to determine the offset of the shifting, and 2 bits of
+* alufn is special as it needs the output of as32 n, v, and z and 2 bits from alufn to determine
+* what operation (=, <, or <=).
+.subckt alu32 a[31:0] b[31:0] alufn[5:0] f[31:0]
+  Xaddsub a[31:0] b[31:0] alufn0 fas[31:0] n v z as32
+  Xboolean a[31:0] b[31:0] alufn[3:0] fbool[31:0] bool32
+  Xbshift a[31:0] b[4:0] alufn[1:0] fshift[31:0] shift32
+  Xcompare n v z alufn[2:1] fcmp[31:0] cmp32
+
+  Xalu alufn5#32 alufn4#32 fas[31:0] fshift[31:0] fbool[31:0] fcmp[31:0] f[31:0] mux4
+.ends
+
+Xa a[31:0] b[31:0] alufn[5:0] f[31:0] alu32
+
+Wa a[31:0] nrz(0, 5, 20ns, 0ns, 0.1ns, 0.1ns)
++ -1 0x55555555 0xAAAAAAAA 1 -2 -1
++ -1 0x55555555 0 -1 0x5555555 0 -1 0x55555555 0 -1 0x55555555 0 -1 0x55555555 0
++ 1 -1 -1 0x55555555 0xAAAAAAAA -1 0x55555555 0xAAAAAAAA -1
++ -1 15 0 -1 15 0 -1 15 0
+
+Wb b[31:0] nrz(0, 5, 20ns, 0ns, 0.1ns, 0.1ns)
++ -1 0x55555555 0xAAAAAAAA 1 0 -1
++ -1 0xAAAAAAAA 0 -1 0xAAAAAAAA 0 -1 0xAAAAAAAA 0 -1 0xAAAAAAAA 0 -1 0xAAAAAAAA 0
++ 31 15 0 24 24 31 24 24 31
++ 1 15 -256 1 15 -256 1 15 -256
+
+Wf alufn[5:0] nrz(0, 5, 60ns, 0ns, 0.1ns, 0.1ns)
++ 0 1
++ 24 30 22 26 21
++ 32 33 35
++ 51 53 55
+
+.tran 780ns
+.plot b(a[31:0])
+.plot b(b[31:0])
+.plot b(alufn[5:0])
+.plot b(alufn[1:0])
+.plot b(f[31:0])
+
+
+*******************************************************************************
+* To optimize the alu32 circuit, we used the mux4 circuit multiple times to store data
+* more efficiently. In the shift32 we used the most mux circuits (161), as we needed to calculate
+* each bit (32) of the result 5 times, one for each stage (shift by 16, 8, 4, 2, 1). bool32
+* uses 32 mux circuits, one for each bit of the output, which uses the 4 op bits as
+* a truth table. In both circuits, we used the minimum number of mux circuits to
+* represent multiple cases with few inputs. The circuits were neccessary to calculate
+* the neccessary bits of the output. 
+*******************************************************************************

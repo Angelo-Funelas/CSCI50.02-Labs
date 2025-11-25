@@ -1,0 +1,90 @@
+*******************************************************************************
+* LAB #5
+* - Francisco, Janelle Chloe
+* - Funelas, Martin Angelo
+*******************************************************************************
+
+
+.include "8clocks.jsim"
+.include "nominal.jsim"
+.include "stdcell.jsim"
+
+.subckt fa a b c_in sum c_out
+  Xsum1 a b sum1 xor2
+  Xcarry1 a b carry1 nand2
+  Xsum2 sum1 c_in sum xor2
+  Xcarry2 sum1 c_in carry2 nand2
+  Xcarry carry1 carry2 c_out nand2
+.ends
+
+.subckt add32 a[31:0] b[31:0] cin0 sum[31:0] cout[31:30]
+  Xfa a[0:31] b[0:31] cin0 cout[0:30] sum[0:31] cout[0:31] fa
+.ends
+
+.subckt iszero32 a[31:0] z
+  Xnor1 a[3:0] a[7:4] a[11:8] a[15:12] nor_out[3:0] nor4
+  Xnor2 a[19:16] a[23:20] a[27:24] a[31:28] nor_out[7:4] nor4
+  Xnand1 nor_out[1:0] nor_out[3:2] nor_out[5:4] nor_out[7:6] nand_out[1:0] nand4
+  Xout nand_out0 nand_out1 z nor2
+.ends
+
+.subckt as32 a[31:0] b[31:0] op0 fas[31:0] n v z
+  .connect op0 op_split[31:0]
+  .connect fas31 n
+
+  Xinv b[31:0] inv_b[31:0] inverter
+  Xswitch op_split[31:0] b[31:0] inv_b[31:0] x[31:0] mux2
+  Xadd a[31:0] x[31:0] op0 fas[31:0] cout[31:30] add32
+  Xeq cout31 cout30 v xor2
+  Xcirc_z fas[31:0] z iszero32
+.ends
+
+.subckt cmp32 n v z op[2:1] fcmp[31:0]
+  .connect 0 fcmp[31:1]
+
+  Xinv2 n inv_n inverter
+  Xswitch2 v n inv_n neg mux2
+  Xor neg z lte or2
+  Xcomp op2 op1 0 neg z lte fcmp0 mux4
+.ends
+
+Xas a[31:0] b[31:0] subtract fas[31:0] n v z as32
+Xcmp n v z clk1 clk2 fcmp[31:0] cmp32
+
+Wreset subtract nrz(0, 5, 20ns, 0ns, 0.001ns, 0.001ns)
++ 0 0 0 0 0 1 1 0 0 0 0 0 0 1
+
+Wa a[31:0] nrz(0, 5, 20ns, 0ns, 0.001ns, 0.001ns)
++ 0 0x55555555 0 0x55555555 -1 0 0
++ 0xAAAAAAAA 0 0xAAAAAAAA 1 -1 0x80000000 -1
++ 2 0x80000000 3 0x7FFFFFFF 3
+
+Wb b[31:0] nrz(0, 5, 20ns, 0ns, 0.001ns, 0.001ns)
++ 0 0 0x55555555 0x55555555 -1 0 -1
++ 0 0xAAAAAAAA 0xAAAAAAAA -1 1 0x80000000 -1
++ -3 2 5 -2 3
+
+.tran 380ns
+.plot subtract
+.plot clk1
+.plot clk2
+.plot sd(a[31:0])
+.plot sd(b[31:0])
+.plot sd(fas[31:0])
+.plot fcmp0
+
+*******************************************************************************
+* Start Node: b0
+* [b0] -> inverter -> mux2 -> (xor2 -> nand2 -> nand2 -> nand2) * 32 -> [cout31][cout30]
+* [n] -> inverter -> [inv_n]
+* [cout31][cout30] -> xor2 -> [v]
+* [inv_n][v] -> mux2 -> or2 - mux4 -> [fcmp0]
+* End Node: fcmp0
+* In this path, b0 is the start node of the longest path since it is the MSB of
+* the second number, which gets manipulated when subtraction is the operation. Once
+* the carry propagates through all 32 full adders and ripple-carry chain finishes, it
+* goes on to cout31 and cout30 which get used in a xor gate to output v. v is then
+* fed into the cmp32 circuit which passes through a series of gates consisting of
+* an inverter, a 2-input multiplexer, or gate, and a 4-input multiplexer which
+* determines the final comparison output fcmp0.
+*******************************************************************************
